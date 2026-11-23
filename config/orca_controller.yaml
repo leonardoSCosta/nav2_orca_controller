@@ -1,0 +1,28 @@
+controller_server:
+  ros__parameters:
+    controller_plugins: ["FollowPath"]
+
+    FollowPath:
+      plugin: "nav2_orca_controller::OrcaController"
+      # ORCA simulator parameters
+      time_step: 0.1
+      neighbor_dist: 5.0
+      max_neighbors: 10
+      time_horizon: 3.0
+      time_horizon_obst: 1.5
+      robot_radius: 0.22
+      safety_buffer: 0.10
+      max_speed: 0.5
+
+      # Controller parameters
+      lookahead_dist: 0.8
+      is_holonomic: false
+      kw: 1.5
+      debug_mode: false
+
+      # Obstacle clusterer parameters
+      cluster_dist_threshold: 0.3
+      min_cluster_size: 3
+      max_obstacle_radius: 2.0
+      scan_topic: "scan"
+

@@ -15,7 +15,7 @@ By default, the controller respects differential-drive kinematics and safely int
 
 ## Configuration
 
-To use `nav2_orca_controller` in Nav2, add it as a plugin in your `nav2_params.yaml` file under the `controller_server` node:
+To use `nav2_orca_controller` in Nav2, add it as a plugin in your `nav2_params.yaml` file under the `controller_server` node (see the provided example in [config/orca_controller.yaml](config/orca_controller.yaml)):
 
 ```yaml
 controller_server:
@@ -42,6 +42,7 @@ controller_server:
 | `lookahead_dist` | double | 0.8 | Distance on the global plan to target (meters). |
 | `is_holonomic` | bool | false | Set to true if the robot is omnidirectional. If false, diff-drive mapping is applied. |
 | `kw` | double | 1.5 | Proportional gain for angular velocity correction. |
+| `debug_mode` | bool | false | Enables publishing RViz debug markers on `orca_markers` (obstacles and curved trajectory arrow). |
 | `cluster_dist_threshold`| double | 0.3 | Max Euclidean distance between two LiDAR points to belong to the same cluster. |
 | `min_cluster_size` | int | 3 | Minimum number of points required to form a valid obstacle cluster. |
 | `max_obstacle_radius` | double | 2.0 | Maximum allowed radius for an obstacle cluster. |
@@ -53,9 +54,9 @@ controller_server:
 - `<scan_topic>` (`sensor_msgs/msg/LaserScan`): Raw LiDAR scans used to dynamically cluster obstacles.
 
 ### Published Topics
-- `orca_markers` (`visualization_msgs/msg/MarkerArray`): Publishes RViz markers for debugging, including:
-  - Red/Orange cylinders representing static and dynamic obstacles.
-  - A Green arrow representing the chosen output velocity command.
+- `orca_markers` (`visualization_msgs/msg/MarkerArray`): Published when `debug_mode` is `true`, including:
+  - Red/Orange cylinders representing static and dynamic obstacles considered by ORCA.
+  - A Green curved arrow representing the predicted trajectory (length proportional to linear speed and curved laterally by angular velocity).
 - `~/diagnostics` (`diagnostic_msgs/msg/DiagnosticArray`): Publishes computation times in milliseconds for LiDAR clustering, Costmap processing, and the RVO2 simulation step.
 
 ## Build Requirements

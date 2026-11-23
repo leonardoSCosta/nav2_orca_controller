@@ -64,8 +64,11 @@ void OrcaController::configure(
   declare_parameter_if_not_declared(node, name_ + ".kw", rclcpp::ParameterValue(1.5));
   node->get_parameter(name_ + ".kw", kw_);
 
+  declare_parameter_if_not_declared(node, name_ + ".debug_mode", rclcpp::ParameterValue(false));
+  node->get_parameter(name_ + ".debug_mode", debug_mode_);
+
   // Initialize Obstacle Clusterer
-  obstacle_clusterer_ = std::make_shared<ObstacleClusterer>(parent, tf_buffer_, costmap_ros_);
+  obstacle_clusterer_ = std::make_shared<ObstacleClusterer>(parent, name_, tf_buffer_, costmap_ros_);
 
   marker_pub_ = node->create_publisher<visualization_msgs::msg::MarkerArray>("orca_markers", 1);
   diag_pub_ = node->create_publisher<diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", 1);
@@ -244,7 +247,9 @@ geometry_msgs::msg::TwistStamped OrcaController::computeVelocityCommands(
   auto rvo_end = std::chrono::high_resolution_clock::now();
   double rvo_time = std::chrono::duration<double, std::milli>(rvo_end - rvo_start).count();
 
-  publishMarkers(robot_pose, cmd_vel, obstacles);
+  if (debug_mode_) {
+    publishMarkers(robot_pose, cmd_vel, obstacles);
+  }
   publishDiagnostics(obstacle_clusterer_->getLastLaserProcessTime(), costmap_time, rvo_time);
 
   return cmd_vel;
@@ -285,35 +290,42 @@ void OrcaController::publishDiagnostics(double laser_time, double costmap_time, 
 }
 
 void OrcaController::publishMarkers(
-  const geometry_msgs::msg::PoseStamped & robot_pose, 
-  const geometry_msgs::msg::TwistStamped & cmd_vel, 
+  const geometry_msgs::msg::PoseStamped & robot_pose,
+  const geometry_msgs::msg::TwistStamped & cmd_vel,
   const std::vector<OrcaObstacle> & obstacles)
 {
   visualization_msgs::msg::MarkerArray marker_array;
   auto stamp = clock_->now();
 
-  // 1. Obstacles as Cylinders (Circles in 2D)
+  // Clear previous frame markers so removed obstacles do not persist
+  visualization_msgs::msg::Marker delete_marker;
+  delete_marker.header.frame_id = costmap_ros_->getGlobalFrameID();
+  delete_marker.header.stamp = stamp;
+  delete_marker.action = visualization_msgs::msg::Marker::DELETEALL;
+  marker_array.markers.push_back(delete_marker);
+
+  // 1. Obstacles currently considered by ORCA as Cylinders (Circles in 2D)
   visualization_msgs::msg::Marker obs_marker;
   obs_marker.header.frame_id = costmap_ros_->getGlobalFrameID();
   obs_marker.header.stamp = stamp;
   obs_marker.ns = "obstacles";
-  obs_marker.id = 0;
   obs_marker.type = visualization_msgs::msg::Marker::CYLINDER;
   obs_marker.action = visualization_msgs::msg::Marker::ADD;
-  
+  obs_marker.lifetime = rclcpp::Duration::from_seconds(0.5);
+
   for (size_t i = 0; i < obstacles.size(); ++i) {
     const auto & obs = obstacles[i];
-    obs_marker.id = i;
+    obs_marker.id = static_cast<int>(i);
     obs_marker.pose.position.x = obs.x;
     obs_marker.pose.position.y = obs.y;
     obs_marker.pose.position.z = 0.05;
     obs_marker.pose.orientation.w = 1.0;
-    
+
     // Scale is diameter
     obs_marker.scale.x = obs.radius * 2.0;
     obs_marker.scale.y = obs.radius * 2.0;
     obs_marker.scale.z = 0.1;
-    
+
     if (obs.is_dynamic) {
       obs_marker.color.r = 1.0;
       obs_marker.color.g = 0.5;
@@ -325,42 +337,90 @@ void OrcaController::publishMarkers(
       obs_marker.color.b = 0.0;
       obs_marker.color.a = 0.5;
     }
-    obs_marker.lifetime = rclcpp::Duration::from_seconds(0.5);
     marker_array.markers.push_back(obs_marker);
   }
 
-  // 2. Velocity Command Vector (Arrow)
-  visualization_msgs::msg::Marker vel_marker;
-  vel_marker.header.frame_id = robot_pose.header.frame_id; // Usually base_link
-  vel_marker.header.stamp = stamp;
-  vel_marker.ns = "velocity_cmd";
-  vel_marker.id = 0;
-  vel_marker.type = visualization_msgs::msg::Marker::ARROW;
-  vel_marker.action = visualization_msgs::msg::Marker::ADD;
-  vel_marker.lifetime = rclcpp::Duration::from_seconds(0.5);
-  
-  // Base of arrow at origin of robot frame
-  geometry_msgs::msg::Point p_start;
-  p_start.x = 0; p_start.y = 0; p_start.z = 0.1;
-  
-  geometry_msgs::msg::Point p_end;
-  p_end.x = cmd_vel.twist.linear.x;
-  p_end.y = cmd_vel.twist.linear.y;
-  p_end.z = 0.1;
+  // 2. Predicted Trajectory Arrow (arc length proportional to linear velocity,
+  // laterally deformed by angular velocity)
+  const double vx = cmd_vel.twist.linear.x;
+  const double vy = cmd_vel.twist.linear.y;
+  const double wz = cmd_vel.twist.angular.z;
+  const double linear_speed = std::hypot(vx, vy);
 
-  vel_marker.points.push_back(p_start);
-  vel_marker.points.push_back(p_end);
+  if (linear_speed > 1e-3) {
+    const double horizon = 1.0;  // 1s rollout: total arc length equals linear_speed * 1.0 m
+    const int num_steps = 20;
+    const double dt = horizon / num_steps;
 
-  vel_marker.scale.x = 0.05; // shaft diameter
-  vel_marker.scale.y = 0.1;  // head diameter
-  vel_marker.scale.z = 0.1;  // head length
+    double x = robot_pose.pose.position.x;
+    double y = robot_pose.pose.position.y;
+    double theta = tf2::getYaw(robot_pose.pose.orientation);
 
-  vel_marker.color.r = 0.0;
-  vel_marker.color.g = 1.0;
-  vel_marker.color.b = 0.0;
-  vel_marker.color.a = 1.0;
+    visualization_msgs::msg::Marker shaft_marker;
+    shaft_marker.header.frame_id = robot_pose.header.frame_id;
+    shaft_marker.header.stamp = stamp;
+    shaft_marker.ns = "trajectory_shaft";
+    shaft_marker.id = 0;
+    shaft_marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    shaft_marker.action = visualization_msgs::msg::Marker::ADD;
+    shaft_marker.lifetime = rclcpp::Duration::from_seconds(0.5);
+    shaft_marker.scale.x = 0.04;
+    shaft_marker.color.r = 0.0;
+    shaft_marker.color.g = 1.0;
+    shaft_marker.color.b = 0.0;
+    shaft_marker.color.a = 1.0;
 
-  marker_array.markers.push_back(vel_marker);
+    geometry_msgs::msg::Point pt;
+    pt.z = 0.1;
+    for (int k = 0; k <= num_steps; ++k) {
+      pt.x = x;
+      pt.y = y;
+      shaft_marker.points.push_back(pt);
+
+      x += (vx * std::cos(theta) - vy * std::sin(theta)) * dt;
+      y += (vx * std::sin(theta) + vy * std::cos(theta)) * dt;
+      theta += wz * dt;
+    }
+    marker_array.markers.push_back(shaft_marker);
+
+    // Arrowhead at the end of the curved trajectory aligned with the final segment
+    const auto & p_prev = shaft_marker.points[shaft_marker.points.size() - 2];
+    const auto & p_tip = shaft_marker.points.back();
+    double seg_dx = p_tip.x - p_prev.x;
+    double seg_dy = p_tip.y - p_prev.y;
+    double seg_len = std::hypot(seg_dx, seg_dy);
+
+    if (seg_len > 1e-6) {
+      visualization_msgs::msg::Marker head_marker;
+      head_marker.header.frame_id = robot_pose.header.frame_id;
+      head_marker.header.stamp = stamp;
+      head_marker.ns = "trajectory_head";
+      head_marker.id = 1;
+      head_marker.type = visualization_msgs::msg::Marker::ARROW;
+      head_marker.action = visualization_msgs::msg::Marker::ADD;
+      head_marker.lifetime = rclcpp::Duration::from_seconds(0.5);
+
+      double head_len = std::min(0.12, linear_speed * horizon * 0.4);
+      geometry_msgs::msg::Point p_tail;
+      p_tail.x = p_tip.x - (seg_dx / seg_len) * head_len;
+      p_tail.y = p_tip.y - (seg_dy / seg_len) * head_len;
+      p_tail.z = 0.1;
+
+      head_marker.points.push_back(p_tail);
+      head_marker.points.push_back(p_tip);
+
+      head_marker.scale.x = 0.04;
+      head_marker.scale.y = 0.10;
+      head_marker.scale.z = head_len;
+
+      head_marker.color.r = 0.0;
+      head_marker.color.g = 1.0;
+      head_marker.color.b = 0.0;
+      head_marker.color.a = 1.0;
+
+      marker_array.markers.push_back(head_marker);
+    }
+  }
 
   marker_pub_->publish(marker_array);
 }

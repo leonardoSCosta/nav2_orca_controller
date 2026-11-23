@@ -42,6 +42,7 @@ class ObstacleClusterer
 {
 public:
   ObstacleClusterer(rclcpp_lifecycle::LifecycleNode::WeakPtr parent,
+                    const std::string & name,
                     std::shared_ptr<tf2_ros::Buffer> tf_buffer,
                     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros);
   ~ObstacleClusterer();

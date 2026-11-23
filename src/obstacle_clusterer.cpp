@@ -9,6 +9,7 @@ namespace nav2_orca_controller
 
 ObstacleClusterer::ObstacleClusterer(
   rclcpp_lifecycle::LifecycleNode::WeakPtr parent,
+  const std::string & name,
   std::shared_ptr<tf2_ros::Buffer> tf_buffer,
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
 : parent_(parent), tf_buffer_(tf_buffer), costmap_ros_(costmap_ros)
@@ -20,21 +21,21 @@ ObstacleClusterer::ObstacleClusterer(
 
   // Clustering Parameters
   nav2_util::declare_parameter_if_not_declared(
-    node, "cluster_dist_threshold", rclcpp::ParameterValue(0.3));
-  node->get_parameter("cluster_dist_threshold", cluster_dist_threshold_);
+    node, name + ".cluster_dist_threshold", rclcpp::ParameterValue(0.3));
+  node->get_parameter(name + ".cluster_dist_threshold", cluster_dist_threshold_);
 
   nav2_util::declare_parameter_if_not_declared(
-    node, "min_cluster_size", rclcpp::ParameterValue(3));
-  node->get_parameter("min_cluster_size", min_cluster_size_);
+    node, name + ".min_cluster_size", rclcpp::ParameterValue(3));
+  node->get_parameter(name + ".min_cluster_size", min_cluster_size_);
 
   nav2_util::declare_parameter_if_not_declared(
-    node, "max_obstacle_radius", rclcpp::ParameterValue(2.0));
-  node->get_parameter("max_obstacle_radius", max_obstacle_radius_);
+    node, name + ".max_obstacle_radius", rclcpp::ParameterValue(2.0));
+  node->get_parameter(name + ".max_obstacle_radius", max_obstacle_radius_);
 
   std::string scan_topic;
   nav2_util::declare_parameter_if_not_declared(
-    node, "scan_topic", rclcpp::ParameterValue("scan"));
-  node->get_parameter("scan_topic", scan_topic);
+    node, name + ".scan_topic", rclcpp::ParameterValue("scan"));
+  node->get_parameter(name + ".scan_topic", scan_topic);
 
   // Subscribe to LaserScan
   scan_sub_ = node->create_subscription<sensor_msgs::msg::LaserScan>(

@@ -83,6 +83,7 @@ protected:
   double lookahead_dist_;
   bool is_holonomic_;
   double kw_; // Angular gain for diff-drive
+  bool debug_mode_{false};
 
   rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
   rclcpp_lifecycle::LifecyclePublisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diag_pub_;
