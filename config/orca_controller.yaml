@@ -15,14 +15,33 @@ controller_server:
       max_speed: 0.5
 
       # Controller parameters
-      lookahead_dist: 0.8
+      lookahead_dist: 0.45
       is_holonomic: false
-      kw: 1.5
+      kw: 1.8
+      max_angular_vel: 0.8
       debug_mode: false
 
-      # Obstacle clusterer parameters
+      # Goal convergence & approach deceleration
+      rotate_to_goal_heading: true
+      goal_dist_tolerance: 0.20
+      goal_yaw_tolerance: 0.15
+      goal_decel_distance: 0.50
+      min_approach_speed: 0.06
+
+      # Forward preference & short reversal limits
+      allow_short_reversal: true
+      min_backward_angle: 2.44          # ~140 deg (rad) required to trigger short reverse
+      max_backward_distance: 0.35       # max continuous backward distance (m)
+      max_backward_duration: 1.5        # max continuous backward duration (s)
+      max_backward_speed: 0.15          # max linear speed while reversing (m/s)
+      forward_turn_slowdown_angle: 1.22 # ~70 deg (rad) beyond which robot rotates in-place forward
+
+      # Hybrid Obstacle Clusterer parameters
       cluster_dist_threshold: 0.3
       min_cluster_size: 3
-      max_obstacle_radius: 2.0
+      max_obstacle_radius: 0.25
+      filter_scan_by_costmap: true
+      costmap_lethal_radius_padding: 1
+      polygon_simplification_tolerance: 0.05
+      min_polygon_cells: 3
       scan_topic: "scan"
-

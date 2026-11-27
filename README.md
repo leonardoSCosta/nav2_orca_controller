@@ -39,13 +39,29 @@ controller_server:
 | `robot_radius` | double | 0.22 | Radius of the robot (meters). |
 | `safety_buffer` | double | 0.10 | Extra padding added to obstacle/agent radiuses. |
 | `max_speed` | double | 0.5 | Maximum linear speed of the robot (m/s). |
-| `lookahead_dist` | double | 0.8 | Distance on the global plan to target (meters). |
+| `lookahead_dist` | double | 0.45 | Distance on the global plan to target (meters). |
 | `is_holonomic` | bool | false | Set to true if the robot is omnidirectional. If false, diff-drive mapping is applied. |
-| `kw` | double | 1.5 | Proportional gain for angular velocity correction. |
-| `debug_mode` | bool | false | Enables publishing RViz debug markers on `orca_markers` (obstacles and curved trajectory arrow). |
+| `kw` | double | 1.8 | Proportional gain for angular velocity correction. |
+| `max_angular_vel` | double | 0.8 | Maximum rotational speed (rad/s). |
+| `rotate_to_goal_heading` | bool | true | When within `goal_dist_tolerance`, stops linear motion and rotates in place to final goal orientation. |
+| `goal_dist_tolerance` | double | 0.20 | Fallback XY distance tolerance (meters) to switch to final goal orientation alignment. |
+| `goal_yaw_tolerance` | double | 0.15 | Fallback yaw tolerance (rad) for final goal alignment. |
+| `goal_decel_distance` | double | 0.50 | Distance from final goal (meters) at which linear speed smoothly decelerates. |
+| `min_approach_speed` | double | 0.06 | Minimum linear approach speed (m/s) during final goal deceleration. |
+| `debug_mode` | bool | false | Enables publishing RViz debug markers on `orca_markers` (obstacles, static polygons, and curved trajectory arrow). |
+| `allow_short_reversal` | bool | true | Allows short emergency backward maneuvers when desired velocity points sharply backward. |
+| `min_backward_angle` | double | 2.44 | Minimum heading error (rad, ~140°) required to trigger a short backward maneuver. |
+| `max_backward_distance` | double | 0.35 | Maximum continuous backward travel distance (meters) before forcing an in-place forward turn. |
+| `max_backward_duration` | double | 1.5 | Maximum continuous backward travel duration (seconds) before forcing an in-place forward turn. |
+| `max_backward_speed` | double | 0.15 | Maximum linear speed (m/s) when backing up. |
+| `forward_turn_slowdown_angle` | double | 1.22 | Heading error (rad, ~70°) above which forward speed scales to zero to rotate in place. |
 | `cluster_dist_threshold`| double | 0.3 | Max Euclidean distance between two LiDAR points to belong to the same cluster. |
 | `min_cluster_size` | int | 3 | Minimum number of points required to form a valid obstacle cluster. |
-| `max_obstacle_radius` | double | 2.0 | Maximum allowed radius for an obstacle cluster. |
+| `max_obstacle_radius` | double | 0.25 | Maximum allowed radius for a circular obstacle cluster (larger clusters are recursively subdivided into multiple circles). |
+| `filter_scan_by_costmap` | bool | true | Filters out LiDAR points already covered by `LETHAL_OBSTACLE` cells in the costmap. |
+| `costmap_lethal_radius_padding` | int | 1 | Cell radius margin around lethal costmap cells when filtering redundant LiDAR points. |
+| `polygon_simplification_tolerance` | double | 0.05 | Ramer-Douglas-Peucker simplification tolerance (meters) for static costmap polygons. |
+| `min_polygon_cells` | int | 3 | Minimum connected lethal cells to form a polygon (smaller blobs are represented as circles). |
 | `scan_topic` | string | "scan" | Topic name to subscribe to for raw `sensor_msgs/msg/LaserScan` data. |
 
 ## Topics
